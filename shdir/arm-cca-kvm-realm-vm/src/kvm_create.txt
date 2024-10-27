@@ -1,0 +1,157 @@
+kvm_cmd_run_init
+        ||
+        ||
+        LL--> kvm__new()
+        
+        
+kvm__init(struct kvm *kvm)
+        ==> kvm__arch_cpu_supports_vm
+        ==> open_kvm_device
+        ==> ioctl-->KVM_GET_API_VERSION
+        ---> check guest ipa limit      
+                ==> used to ensure that assigned size of ram fits in the ipa requested
+        ---> ioctl_KVM_CREATE_VM (kvm_get_vm_type()) --> return kvm_fd
+        ---> check supported extensions requested
+                ==> ioctl__KVM_CHECK_EXTENSION  
+        ==> kvm__arch_init()
+                -->//create teh virtual gic
+                -->see arm/gic.c:254
+                --> create VGIC_V3_
+                --> gic_redist_size == nr_of_cpus * GIC_DIST_SIZE
+                --> gic_redist_base == GIC_DIST_BASE  - gic_redist_size
+                --> gic_msi_base == gic_redists_base - gic_msi_size
+                ==> gic__create_device
+                        ==>consider
+                        a. kvm_creat_device <gic_device>
+                        b. kvm_device_attr <cpu_if_attr>
+                        c. kvm_device_attr <dist_attr>
+                        d. kvm_device_attr <redist_attr>
+                        e. set gic_device_version == KVM...ARM_VGIC_V3
+                        f. set dist_attr.attr == KVM_VGIC_V3_ADDR_TYPE_DIST
+                  ---> ioctl_KVM_CREATE_DEVICE gic_device ==> returns gic_fd in struct passed
+                  ---> ioctl_KVM_SET_DEVICE_ATTR <set redistributor to the gic>
+                  ---> ioctl_KVM_SET_DEVICE_ATTR <set distributor to the gic>  
+                ===> gic__create_msi_frame
+                        --> creates a device
+                                == its_device
+                        --> creates attributes
+                                == its_attr
+                                == its_init_attr
+                        --> ioctl_KVM_CREATE_DEVICE ---> returns fd in passed struct
+                                -->check that device has a given attribute
+                                -->ioctl_KVM_HAS_DEVICE_ATTR    
+                        --> ioctl_KVM_SET_DEVICE_ATTR ---> pass its_attr && its_init_attr
+                        
+                ===> kvm__arch_enable_mte
+                        --> requesting a capability with a given structure
+                        --> struct kvm_enable_cap cap
+                                <KVM_CAP_ARM_MTE>
+                        -->check and enable if present
+                        
+kvm__init_ram
+        ===> allocate guest memory 
+        ==> ensure that alignment of allocated memory aligns with guest memory pages
+        ---> align 64K or 2M or 1G or 512G
+        
+        --> mmap_anon_hugetlbfs ? hugetlbfs_path --takes a path  
+                --mmap_hugetlbfs < takes path>
+                --mmap(.... MAP_ANON_NORESERVE)
+                --madvise(ram_alloc_start, ram_alloc_size MADV_MERGEABLE)
+  --> mmap_anon_hugetlbfs ? hugetlbfs_path --takes a path  
+                --mmap_hugetlbfs < takes path>
+                --mmap(.... MAP_ANON_NORESERVE)
+                --madvise(ram_alloc_start, ram_alloc_size MADV_MERGEABLE)
+                --madvise(ram_alloc_start, ram_alloc_size MADV_HUGEPAGE)
+                --
+        -->kvm__register_ram (gpa, va, size ?? )
+                        struct kvm_userspace_memory_region
+        -> ioctl(kvm->vm_fd, KVM_SET_USER_MEMORY_REGION, &mem);
+
+kvm__load_kernel
+        -> linux needs initrd and dtb to be mapped inside lowmem
+         - can't be placed at the top of memory
+        gg load firmware 
+kvm__ipc_init 
+        basically a socket (AF_UNIX) for communication amongs threads
+
+	register_ipc_handlers
+		kvm_ipc__registeR_handler 
+			<KVM_IPC_PID, KVM_IPC_DEBUG, KVM_IPC_RESUME, KVMP_IPC_STOP,KVM_IPC_VMSTATE>
+		install signal handler
+
+kvm_cpu__init
+	determine number of cpus
+	<recommended vs max_cpus>
+	-->calloc struct kvm_vcpu_init
+		--> ioctl_KVM_CREATE_VCPU-->cpu_id
+		--> ioctl_KVM_GET_VCPU_MMAP_SIZE <pass the kvm device fd>
+		--> use mmap to map the given vcpu->fd, shared, with size gotten above
+		--> set cpu_features here
+			lkvm requests for KVM_ARM_VCPU_PSCI_0_2	
+			in the vcpu_structure
+				set features that are needed, its an or operation
+				-check whether cpu has given capability or kvm_supports it then
+				- KVM_CAP_ARM_EL1_32BIT {1<<KVM_ARM_EL1_32BIT}
+				- KVM_CAP_ARM_VCPU_PMU_V3  KVM_ARM_VCPU_PMU_V3
+				- KVM_CAP_ARM_VCPU_PTRAUTH_ADDRESS	KVM_ARM_VCPU_PTRAUTH_ADDRESS	
+				- KVM_CAP_ARM_VCPU_PTRAUTH_GENERIC 	KVM_ARM_VCPU_PTRAUTH_GENERIC
+				- KVM_CAP_ARM_VCPU_PTRAUTH_GENERIC 	KVM_ARM_VCPU_PTRAUTH_GENERIC
+	//see kvm-cpu.c:146 for features to look for
+		or everything in vcpu_init.features[0] 
+
+	==>set the default cpu using ioctl_vm_fd_KVM_ARM_PREFERRED_TARGET, 
+	ioctl_vcpu_fd KVM_ARM_VCPU_INIT
+	==>ioctl_kvm_dev_fd_KVM_CHECK_EXTENSION...KVM_CAP_COALESCED_MMIO
+	if (coalsced_offset) 
+		vcpu->ring = (void*)vpcu->kvm_run + (coalesced_offset * PAGE_SIZE)
+		// I have no idea what exactly this does
+
+	//check what KVM_CAP_ARM_SVE really is 
+	//ioctl_vcpu_fd_KVM_ARM_VCPU_FINALIZE
+
+
+check vfio__init
+
+
+register devices
+	==> see pci.c pci__init
+	kvm__register_pio <kvm, port, len, handler, ptr)
+		kvm__register_iotrap <kvm, port, len , mmio_fn, ptr, DEVICE_BUS_IOPORT>
+	
+	==>struct mmio_mapping
+	==>struct kvm_coalesced_mmio_zone
+		mmio_mapping {.node == rb_int_init(pa, pa+len), .mmio_fn=mmio_fn, .ptr=ptr, refcount=0, remove=false}
+	/*these are userspace structures*/
+	mmio_insert(&pio_tree, mmio_mapping} or 
+	mmio_insert(&mmio_tree, mmio_mapping} 
+
+	see hw/serial.c:455 for an example device registration
+
+	kvm__register_iotrap<kvm, dev->iobase, 8, serial8250_mmio, dev, SERIAL8250_BUS_TYPE
+
+==>term_init 
+	==> see term.c:179
+
+virtio/rng.c:169
+virtio/net.c:930
+
+==> for frame buffer, see
+	framebuffer.c:52
+
+==>initialize gic
+	gic__init_gic <struct kvm>
+		--allocated lines
+		-- kvm_device_attr nr_irqs_attr >> set nurmber of irqs (addr), set group KVM_DEV_ARM_VGIC_GRP_CTRL
+		-- kvm_device_attr vgic_init_attr>> KVM_DEV_ARM_VGIC_CTRL_INIT, set group KVM_DEV_ARM_VGIC_GRP_CTRL
+
+	check-->ioctl_gic_fd_KVM_HAS_DEVICE_ATTR (above)
+	set-->ioctl_gic_fd_KVM_SET_DEVICE_ATTR (above)
+
+	irq_routing_init see how routing is done in gic.c:82
+	
+	==>ioctl_gic_fd_KVM_HAS_DEVICE vgic_init_attr KVM_SET...	
+	==>setup irq__setup_irqfd_lines(kvm)
+
+
+==>setup fdt
+		see: arm/fdt.c:107

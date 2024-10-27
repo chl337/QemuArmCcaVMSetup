@@ -1,0 +1,106 @@
+ENTRY(_start)
+/*
+MEMORY {
+	RAM(rwx): ORIGIN = 0x40080000 , LENGTH = (96M - 0x80000) 
+};
+*/
+/*SYSTEM_RAM_BASE*/
+PHDRS
+{
+  headers PT_PHDR PHDRS;
+  text PT_LOAD FILEHDR PHDRS ;
+  data PT_LOAD ;
+  dynamic PT_DYNAMIC ;
+}
+
+ENTRY(_start);
+
+SECTIONS 
+{
+		/*. = 0xFFFFF08000000000; KERNEL_VA_BASE;*/
+		. = SIZEOF_HEADERS;		
+		_TEXT_START = .;
+		_binary_start = .;
+		. = ALIGN(0x80);
+
+		.text : { *(.text .text.* .gnu.linkonce.t*) }:text 
+
+		PROVIDE(rela_start = .);
+		.rela.dyn :{ *(.rela.dyn .rela.* .rela*) } : text
+		PROVIDE(rela_end = .);
+
+		.note.gnu.build : { *(.note.gnu* .note.gnu.*) } :text 
+		 . = ALIGN(0x400);
+		.vector : {  *(.vector .vector_table .vector_table.* .vector.*)  }:text
+		. = ALIGN(0x1000);
+		_TEXT_END = .;
+
+		_RO_START = .;
+		.rodata  : { *(.rodata .rodata.* .gnu.linkonce.r*) } 
+		. = ALIGN(0x1000);
+		_RO_END = .;
+
+
+		_DATA_START = .;
+		PROVIDE(_data = .);
+		.data : { 
+			*(.data .data.* .gnu.linkonce.d* .got .got.*) 
+			. = ALIGN(0x1000);
+		}:data 
+		_DATA_END = .;
+
+		_BSS_START = .; 
+		.bss : { 
+			*(.bss .bss.*)
+			. = ALIGN(0x1000);
+		}:data 
+		_BSS_END = .;
+
+		.eh_frame_hdr : {
+			*(.eh_frame .eh_frame.*)
+		}
+		
+		.eh_frame : {
+			*(.eh_frame .eh_frame.*)
+		}
+		
+		. = ALIGN(0x1000);
+
+		_PAGE_TABLE_START = .;
+		.page_tables : { *(.page_tables) } 
+		_PAGE_TABLE_END = .;
+
+		. = ALIGN(0x1000);
+		.bitmap_section : {
+			_BITMAP_NS_START = .;
+			. = . + 0x4000;
+			_BITMAP_NS_END = .;
+			_BITMAP_START = .; 
+			. = . + 0x4000;	
+			_BITMAP_END = .;
+			. = ALIGN(0x1000);
+		} 
+
+		. = ALIGN(0x10000);
+		.stack : {
+			_sstack = .;
+			*(.stack);	
+			_stack = .;
+			_stack_base = .;
+		} 
+		. = ALIGN(0x200000);
+		_binary_end = .;
+		.shared_ns_memory : { /*:AT(KERNEL_PA_BASE) */
+			_SHARED_NS_MEMORY_START = .;
+			. = . + 0x200000 ;
+			_SHARED_NS_MEMORY_END = .;
+		}  =0 
+
+		. = ALIGN(0x1000);
+
+		.empty_section : {
+		. = ALIGN(0x1000000);/*align 16MB*/
+		_ram_end = .;
+		}  = 0
+}
+ 

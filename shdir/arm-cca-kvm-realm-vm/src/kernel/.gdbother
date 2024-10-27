@@ -1,0 +1,6 @@
+target remote :1234
+maintenance packet Qqemu.PhyMemMode:0
+maintenance packet Qqemu.sstep=0x1
+add-symbol-file -o 0x42000000 kernel_start.elf
+add-symbol-file -o 0xFFFFF00000000000 kernel_start.elf
+

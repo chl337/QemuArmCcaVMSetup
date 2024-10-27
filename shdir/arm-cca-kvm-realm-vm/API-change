@@ -1,0 +1,109 @@
+# ARM CCA
+Resources:
+
+        * kvmtool: https://gitlab.arm.com/linux-arm/kvmtool-cca/-/tree/cca/v2?ref_type=heads
+        * Qemu: https://git.codelinaro.org/linaro/dcap/qemu/-/tree/cca/v3?ref_type=heads
+        * Linux: https://gitlab.arm.com/linux-arm/linux-cca/-/tree/cca-full/v3?ref_type=heads
+
+## kvmtool
+
+### Changes: cca/v2 from cca/rfc-v1
+* Dropped:
+        - Method calls
+                - void realm_configure_sve(..)
+                - (a) void kvm_arm_realm_populate_initrd(...)
+                - (a) void kvm_arm_realm_populate_dtb(...)
+                - (a) void kvm_arm_realm_populate_kernel(...)
+        - Definitions
+                - KVM_CAP_ARM_RME_MEASUREMENT_ALGO_ZERO
+                - KVM_CAP_ARM_RME_CFG_SVE
+                - KVM_CAP_ARM_RME_CFG_DBG
+                - KVM_CAP_ARM_RME_CFG_PMU
+* Added/Changed:
+        - Method calls
+                - void kvm__arch_enable_exit_hypcall(..)
+                - bool kvm__is_realm(...) -> take path or not
+                - kvm__register_ram(...) -> changed: flags: KVM_MEM_TYPE_RAM|KVM_MEM_TYPE_GUESTFD
+                        => use set_user_memory_guestfd() {... kvm_userspace_memory_region2 {...} ... }
+                - kvm__register_shared_ram(...) -> flags: KVM_MEM_TYPE_RAM
+                - kvm_arm_realm_populate_ram(...) -> replaced (a);  fills (c)
+                - kvm_cpu__configure_sve(...) -> changed
+                - kvm_arm_realm_finalize(...) -> changed; Entry-point: create realm (see Flow)
+                - realm_populate(...) -> either do (e) or mark unpopulated are with realm_init_ipa_range()
+                - (e) __realm_populate(...) -> adjusted for (d)
+                - (vCPU) handle_mem_share(...)
+                - (vCPU) handle_mem_unshare(...)
+                - (vCPU) handle_hypercall(...)
+                - (vCPU) handle_memoryfault(...)
+                - (vCPU) kvm_cpu__handle_exit(...)
+        - Definitions
+                - KVM_ARM_VCPU_HAS_EL2  7 // Nested Virtualization support
+                - KVM_ARM_VCPU_REC      8
+                - KVM_ARM_VM_SMCCC_CTRL 0
+                - KVM_ARM_VM_SMCCC_FILTER 0
+                - (b) KVM_ARM_RME_POPULATE_FLAGS_MEASURE (1U << 0)
+        - Structs
+                - struct kvm_arm_counter_offset {...} 
+                - struct kvm_cap_arm_rme_populate_realm_args {...} -> uses (b)
+                - (d) struct kvm_cap_arm_rme_init_ipa_args {...}
+                - (c) struct realm_ram_region {...}
+                - struct kvm_arm_rmm_psci_complete {...}
+                - struct kvm_memory_attributes {...}
+                - struct kvm_create_guest_memfd {...}
+
+### Flow
+
+* Entry: int kvm__init(...)
+        * ...
+        * ioctl(..., KVM_CREATE_VM, kvm_get_vm_type(...))
+        * ...
+        * kvm__arch_init(...)
+                * cfg.restricted_mem
+                        * KVM_CAP_MEMORY_ATTRIBUTES
+                * gic__create(...)
+                        * ARM_GIC_REDIST_SIZE: in runtime value * requested_vCPUs
+                * kvm__arch_enable_exit_hypcall
+        * ...
+                * kvm__arch_load_kernel_image(...)
+                        * kvm_arm_realm_populate_ram(...)
+        * ...
+        * kvm__init_ram(...)
+                * kvm__register_ram(...) : KVM_MEMORY_TYP = KVM_MEM_TYPE_RAM | KVM_MEM_TYPE_GUESTFD
+                                * !!! set_user_memory_guestfd(....)
+
+Path: arm/aarch64/realm.c
+* Create Realm: __attribute_(constructor) kvm_arm_realm_finalize(...)
+        * kvm_arm_realm_create_realm_descriptor(kvm)
+                * realm_configure_parameters()
+        * For [region]: realm_populate(kvm, region)
+                * __realm_populate
+                * realm_init_ipa_range
+        * For [vCPU]: kvm_cpu__reset_vcpu
+        * kvm_arm_realm_activate_realm(kvm)
+
+
+## Qemu cca/v3
+
+### Flow
+* Entry: int kvm_init(...)
+        * kvm_arch_init()
+                * kvm_arm_rme_init()
+                        * handler - rme activation: rme_vm_state_change(...)
+                        * handler - rom add: rme_rom_load_notify(...)
+
+Path: target/arm/kvm-rme.c
+* Create Realm: Change State
+        * rme_vm_state_change()
+                * rme_config(...) :
+                * rme_create_rd(...)
+                * For [ram_region]: rme_populate_realm
+                        * populate_region || mark range as IPA
+
+## Linux cca/v3
+
+### Flow
+Path: arch/arm64/kvm/rme.c
+* Entry: kvm_realm_enable_cap(...)
+
+#### Note to self
+* see HowTo impl.: int kvm__arch_get_ipa_limit(struct kvm *kvm)

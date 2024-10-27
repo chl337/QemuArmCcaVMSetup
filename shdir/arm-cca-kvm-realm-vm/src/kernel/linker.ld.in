@@ -1,0 +1,75 @@
+INCLUDE linker_defines.h
+ENTRY(_start)
+
+MEMORY {
+	RAM(rwx): ORIGIN = SYSTEM_RAM_BASE, LENGTH = 96M
+};
+
+SECTIONS 
+{
+		. = KERNEL_VA_BASE;
+		_binary_start = .;
+		_TEXT_START = .;
+		. = ALIGN(0x1000);
+
+/*		.vector : {  *(.vector .vector.*) } > RAM */
+
+		.text : { *(.vector .vector.* .text .text.* .gnu.linkonce.t*) } > RAM
+		. = ALIGN(0x1000);
+		_TEXT_END = .;
+
+		_RO_START = .;
+		.rodata  : { *(.rodata .rodata.* .gnu.linkonce.r*) } > RAM
+		. = ALIGN(0x1000);
+		_RO_END = .;
+
+
+		_DATA_START = .;
+		PROVIDE(_data = .);
+		.data : { 
+			*(.data .data.* .gnu.linkonce.d* .got .got.*) 
+			. = ALIGN(0x1000);
+		} > RAM
+		_DATA_END = .;
+
+		_BSS_START = .; 
+		.bss : { 
+			*(.bss .bss.*)
+			. = ALIGN(0x1000);
+		} > RAM
+		_BSS_END = .;
+
+		_PAGE_TABLE_START = .;
+		.page_tables : { *(.page_tables) } > RAM
+		_PAGE_TABLE_END = .	;
+		.bitmap_section : {
+			. = ALIGN(0x1000);
+			_BITMAP_NS_START = .;
+			. = . + 0x4000;
+			_BITMAP_NS_END = .;
+			_BITMAP_START = .; 
+			. = . + 0x4000;	
+			_BITMAP_END = .;
+			. = ALIGN(0x1000);
+		} > RAM
+
+		 .shared_ns_memory { /*:AT(KERNEL_PA_BASE) */
+		_shared_ns_start = .
+		. = . + 0x10000 ;
+		_shared_ns_end = .
+		} > RAM =0 
+
+		.stack : {
+			_sstack = .;
+			*(.stack);	
+			_stack = .;
+			_stack_base = .;
+		} > RAM
+
+		.empty_section : {
+		_binary_end = .;
+		. = ALIGN(0x1000000);/*align 16MB*/
+		_ram_end = .;
+		} > RAM = 0
+}
+ 

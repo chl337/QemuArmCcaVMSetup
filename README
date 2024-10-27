@@ -15,3 +15,9 @@ Run 'qemu_launch_host.sh' to launch the VM.
  - Precondition: Open two terminals, each listening to port: 5432{3,4}.
         - Adjust ports / IPs as it fits your system best.
 
+## Launch Realm-VM
+Simple VMM-VM in shdir/arm-cca-kvm-realm-vm. VMM is in src/main.rs, while kernel files
+in src/kernel/*.
+        * make all: in src/kernel/ to build kernel binary
+        * cargo build: in src/ to build VMM
+        * make run: in src/ to launch Realm-VM
