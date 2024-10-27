@@ -1,0 +1,17 @@
+# Qemu Arm-CCA VM Setup
+
+Setup a Qemu VM that emulates HW with Arm-CCA capabilities. A guest inside the VM
+can use the KVM API to launch a Realm-VM.
+
+## SW-Stack
+Run 'python qemu_rme_setup.py' to pull and build the needed SW-Stack:
+        * TF-A: L3 - Root FW
+        * TF-RMM: L2 - Realm Management Monitor
+        * Linux: With CCA support
+        * ubuntu_fs.sh: Script to generate an Ubuntu22.04 image
+
+## Qemu launch
+Run 'qemu_launch_host.sh' to launch the VM.
+ - Precondition: Open two terminals, each listening to port: 5432{3,4}.
+        - Adjust ports / IPs as it fits your system best.
+
