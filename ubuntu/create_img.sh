@@ -5,7 +5,7 @@ img_name="$1"
 directory=$root/"ubuntu_fs"
 realm_user="realm"
 realm_password="realm"
-
+arch=$(uname -i)
 if [[ $EUID -ne 0 ]]; then
    echo "Need to run with sudo"
    exit 1
@@ -17,9 +17,9 @@ if [ -z "$img_name" ]; then
     exit 1
 fi
 
-#Generate a 12GB img file for guest
-echo "Generating 12GB guest img file $img_name ..."
-dd if=/dev/zero of=$img_name bs=1GB count=12 || exit 1
+#Generate a 4GB img file for guest
+echo "Generating 4GB guest img file $img_name ..."
+dd if=/dev/zero of=$img_name bs=1GB count=4 || exit 1
 
 # Format the img file as ext4 file system
 echo "Formatting the img file as ext4 file system..."
@@ -68,6 +68,12 @@ deb http://nova.clouds.ports.ubuntu.com/ubuntu-ports/ jammy-security main restri
 deb http://nova.clouds.ports.ubuntu.com/ubuntu-ports/ jammy-security universe
 deb http://nova.clouds.ports.ubuntu.com/ubuntu-ports/ jammy-security multiverse
 EOF
+
+#Arm64 chroot
+if [[ $arch != a* ]]; then
+        sudo apt-get install -yq binfmt-support qemu-user-static
+        sudo cp -av /usr/bin/qemu-aarch64-static $directory/usr/bin
+fi
 
 # Switch to chroot environment and execute apt command
 echo "Switching to chroot environment and executing apt command..."
@@ -136,18 +142,11 @@ chroot "$directory" /bin/bash -c "apt install systemd iptables -y" || exit 1
 chroot "$directory" /bin/bash -c "ln -s /lib/systemd/systemd /sbin/init" || exit 1
 
 echo "Install other essential components, in case of booting blocking at /dev/hvc0 failed to bring up"
-chroot "$directory" /bin/bash -c "apt install build-essential network-manager vim bash-completion \
+chroot "$directory" /bin/bash -c "apt install build-essential network-manager git vim bash-completion \
         net-tools iputils-ping ifupdown ethtool ssh rsync udev htop rsyslog curl openssh-server \
         apt-utils dialog nfs-common psmisc language-pack-en-base \
         sudo kmod apt-transport-https libcap-dev -y" || exit 1
 chroot "$directory" /bin/bash -c "systemctl enable systemd-networkd.service" || exit 1
-       # echo "QemuHost: Enter interactive chroot for ${realm_user}"
-       # chroot "$directory" /bin/bash -c "su - realm -c /bin/bash -c 'curl -fsSL https://get.docker.com -o install-docker.sh && \
-       #         sudo -S sh install-docker.sh && sudo -S usermod -aG docker realm && \
-       #         sudo -S systemctl enable docker.service && sudo -S systemctl enable containerd.service '" || exit 1
-#chroot "$directory" /bin/bash -c "su - realm -c /bin/bash -c 'sudo -S apt install docker.io -y'" || exit 1
-echo "user: realm - pass: realm | You can install packets that you need now or continue..."
-chroot "$directory" /bin/bash -c "su - realm -c /bin/bash" #-c 'sudo apt install --allow-downgrades -y docker-ce=$(apt-cache madison docker-ce | awk \'/20.10.23/{print $3}\')'" || exit 1
 
 cat > "$directory/etc/hosts" << EOF
 127.0.0.1       localhost.localdomain localhost
