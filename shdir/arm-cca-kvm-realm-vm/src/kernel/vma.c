@@ -1140,20 +1140,20 @@ int k_brk(void *address)
 /*turn access to user on, return true if it was on*/
 int enable_access_to_user()
 {
-	asm volatile("isb; dsb ish;");
-	uint64_t pan;
-	asm volatile("mrs %0,PAN;":"=r"(pan));
-	if (pan) {
-		pan=0;
-		asm volatile("msr PAN,%0;"::"r"(pan));
-	}
-	return 1;
+//	asm volatile("isb; dsb ish;");
+//	uint64_t pan;
+//	asm volatile("mrs %0,PAN;":"=r"(pan));
+//	if (pan) {
+//		pan=0;
+//		asm volatile("msr PAN,%0;"::"r"(pan));
+//	}
+        return 1;
 }
 /*disable kernel access to user pages */
 void disable_access_to_user()
 {
-	uint64_t pan=1;
-	asm volatile("msr PAN,%0;"::"r"(pan));
+//	uint64_t pan=1;
+//	asm volatile("msr PAN,%0;"::"r"(pan));
 }
 size_t copy_to_user(void *dst, const void *src, uint64_t count)
 {
