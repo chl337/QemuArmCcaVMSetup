@@ -3,21 +3,71 @@
 Setup a Qemu VM that emulates HW with Arm-CCA capabilities. A guest inside the VM
 can use the KVM API to launch a Realm-VM.
 
+## Known to work in:
+        * Ubuntu-22.04 on x86_64, Linux kernel 6.5.0-18-generic
+        * Ubuntu-22.04 on arm64, Linux kernel 5.15.0-119-generic
+        * Ubuntu-22.04 on VirtualBox 7.1.4, minimal installation
+                * Memory: 14GB
+                * Storage: 50GB
+                * CPU: 4
+                  !!!NOTE!!! On startup don't forget to:
+                  * sudo apt-get update
+                  * sudo apt-get install build-essential git vim
+
 ## SW-Stack
-Run 'python qemu_rme_setup.py' to pull and build the needed SW-Stack:
         * TF-A: L3 - Root FW
         * TF-RMM: L2 - Realm Management Monitor
         * Linux: With CCA support
+        * Qemu-CCA: Platform emulator - patched for CCA support (only cpu-max)
         * ubuntu_fs.sh: Script to generate an Ubuntu22.04 image
-
+Run './prebuild.sh' to build and unpack the needed SW-Stack:
+        Usage:
+                -/prebuild.sh -a  : Creates everything - use it the first time
+                        * get and build qemu
+                        * create an ubuntu.img (4GB)
+                                * user: realm
+                                * pass: realm
+                        * unpack in bin/:
+                                * linux-cca/Image
+                                * trusted-firmware-a/flash.bin
+                -/prebuild.sh -q
+                        * get and build qemu if not already done
+                          or do "make clean" and try to rebuild
+                -/prebuild.sh -p
+                        * unpack the prebuild binaries
+                -/prebuild.sh -u
+                        * create the ubuntu22.img if not already done
+                          or remove old img-file and retry
+                          !!!NOTE!!!
+                          If creation failed, then first unmount the FS
+                          mounted on "./ubuntu/ubuntu_fs"
+                          * check with: mount | grep "ubuntu_fs"
+                          * unmount, e.g.: sudo umount -l ./ubuntu/ubuntu_fs/proc
+                                           sudo umount -l ./ubuntu/ubuntu_fs/dev/pts
+                                           sudo umount -l ./ubuntu/ubuntu_fs/dev
+                                           sudo umount -l ./ubuntu/ubuntu_fs/sys
 ## Qemu launch
 Run 'qemu_launch_host.sh' to launch the VM.
- - Precondition: Open two terminals, each listening to port: 5432{3,4}.
+ - Precondition: Open two terminals, in one listen for connection on port 54323
+   and in the other listen for connection on port 54324.
+        - e.g. with Netcat:
+                * nc -l 54323
+                * nc -l 54324
         - Adjust ports / IPs as it fits your system best.
+ - After launch: you can connect to the Qemu-hosted Ubuntu system with ssh
+        * ssh -p 50022 realm@localhost
+
+## On Qemu-Guest
+* Install rust: curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+* mount the share directory as the log message describes
+* Copy the arm-cca-kvm-realm-vm/ in the home directory
+* Change permissions:
+        sudo chmod -R 775 arm-cca-kvm-realm-vm
+        sudo chown -R realm:realm arm-cca-kvm-realm-vm
 
 ## Launch Realm-VM
 Simple VMM-VM in shdir/arm-cca-kvm-realm-vm. VMM is in src/main.rs, while kernel files
 in src/kernel/*.
         * make all: in src/kernel/ to build kernel binary
         * cargo build: in src/ to build VMM
-        * make run: in src/ to launch Realm-VM
+        * make run: in arm-cca-kvm-realm-vm/ to launch Realm-VM
