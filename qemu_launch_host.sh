@@ -15,10 +15,14 @@
 #        -device virtio-serial-device \
 #        -device virtconsole,chardev=hvc1 \
 QEMUDIR=$(realpath ./qemu/build)
+BIN=$(realpath ./bin)
+TFA=${BIN}/trusted-firmware-a
+LINUX_CCA=${BIN}/linux-cca
+OS_IMG=./ubuntu/ubuntu22.img
 SHDIR="$1"
 
 if [ -z "$SHDIR" ]; then
-        SHDIR="."
+        SHDIR="./shdir"
 fi
 
 echo "Start GuestPlaftform with Arm CCA support"
@@ -26,11 +30,11 @@ echo "GuestPlaftform: Shared directory: $(realpath ${SHDIR}) can be mount with '
 echo "Host: after booting GuestPlaftform use: ssh -p 50022 realm@localhost"
 
 ${QEMUDIR}/qemu-system-aarch64 -M virt,virtualization=on,secure=on,gic-version=3 \
-        -M acpi=off -cpu max,x-rme=on -m 16G -smp 4 \
+        -M acpi=off -cpu max,x-rme=on -m 8G -smp 4 \
         -nographic \
-        -bios trusted-firmware-a/flash.bin \
-        -kernel linux-cca/arch/arm64/boot/Image \
-        -drive format=raw,if=none,file=ubuntu_img/ubuntu22.img,id=hd0 \
+        -bios ${TFA}/flash.bin \
+        -kernel ${LINUX_CCA}/Image \
+        -drive format=raw,if=none,file=${OS_IMG},id=hd0 \
         -device virtio-blk-pci,drive=hd0 \
         -nodefaults \
         -serial tcp:localhost:54323 \
