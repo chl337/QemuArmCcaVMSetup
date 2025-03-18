@@ -27,12 +27,14 @@ Run './prebuild.sh' to build and unpack the needed SW-Stack:
                         * create an ubuntu.img (4GB)
                                 * user: realm
                                 * pass: realm
+                        * build a linux-cca Image
                         * unpack in bin/:
-                                * linux-cca/Image
                                 * trusted-firmware-a/flash.bin
                 -/prebuild.sh -q
                         * get and build qemu if not already done
                           or do "make clean" and try to rebuild
+                -/prebuild.sh -l
+                        * build the Linux Image 
                 -/prebuild.sh -p
                         * unpack the prebuild binaries
                 -/prebuild.sh -u

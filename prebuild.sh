@@ -6,19 +6,20 @@ PREBUILD=
 ALL=
 
 # Build the big files
-while getopts qupa flags
+while getopts qupla flags
 do
         case ${flags} in
                 q) QEMU="y";;
                 u) UBUNTU="y";;
                 p) PREBUILD="y";;
+                l) LINUX="y";;
                 a) ALL="y";;
-                ?) echo "Use -a: create all; -q: build Qemu; -u: create Ubuntu image"
+                ?) echo "Use -a: create all; -q: build Qemu; -u: create Ubuntu image; -l: build linux; -p: unpack tf-a"
                         exit 1;;
         esac
 done
 
-if [[ -n ${QEMU} ]] || [[ -n ${UBUNTU} ]] || [[ -n ${PREBUILD} ]]; then
+if [[ -n ${QEMU} ]] || [[ -n ${UBUNTU} ]] || [[ -n ${PREBUILD} ]] || [[ -n ${LINUX} ]]; then
         if [[ -n ${ALL} ]]; then
                 unset ALL
                 echo "Flag '-a' will be ignored"
@@ -26,6 +27,28 @@ if [[ -n ${QEMU} ]] || [[ -n ${UBUNTU} ]] || [[ -n ${PREBUILD} ]]; then
 fi
 
 export DEBIAN_FRONTEND=noninteractive
+
+#Linux-cca
+if [[ -n ${LINUX} ]] || [[ -n ${ALL} ]]; then
+        echo "Build Linux-CCA"
+        if [[ ! -d ./linux-cca ]]; then
+                echo " Linux-CCA not found - clone"
+                     git clone -b cca/v3 --single-branch https://gitlab.arm.com/linux-arm/linux-cca.git
+        else
+                echo "Qemu-CCA found"
+        fi
+        echo "Build Linux-CCA"
+        pushd linux-cca/
+                which aarch64-linux-gnu-gcc
+                if [[ $? -ne 0 ]]; then
+                        sudo apt-get update & sudo apt-get install \
+                                gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
+                fi
+                make CROSS_COMPILE=aarch64-linux-gnu- ARCH=arm64 defconfig
+                scripts/config -e VIRT_DRIVERS -e ARM_CCA_GUEST -e VMGENID -d NITRO_ENCLAVES
+                make CROSS_COMPILE=aarch64-linux-gnu- ARCH=arm64 -j$(nproc-1)
+        popd
+fi
 
 #Qemu-CCA
 if [[ -n ${QEMU} ]] || [[ -n ${ALL} ]]; then
@@ -65,8 +88,8 @@ unset DEBIAN_FRONTEND
 if [[ -n ${PREBUILD} ]] || [[ -n ${ALL} ]]; then
         echo "Unpack TF-A and linux-cca in bin/"
         if [[ -d ./bin ]]; then
-                echo "Remove previous ./bin from unpacked prebuildfw.tar.gz"
+                echo "Remove previous ./bin from unpacked prebuild.tar.gz"
                 rm -rf ./bin
         fi
-        tar -xvf prebuildfw.tar.gz
+        tar -xvf prebuild.tar.gz
 fi

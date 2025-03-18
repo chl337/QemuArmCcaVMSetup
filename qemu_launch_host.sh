@@ -17,12 +17,16 @@
 QEMUDIR=$(realpath ./qemu/build)
 BIN=$(realpath ./bin)
 TFA=${BIN}/trusted-firmware-a
-LINUX_CCA=${BIN}/linux-cca
+LINUX_CCA=./linux-cca/arch/arm64/boot
 OS_IMG=./ubuntu/ubuntu22.img
 SHDIR="$1"
 
 if [ -z "$SHDIR" ]; then
         SHDIR="./shdir"
+fi
+
+if [ ! -d ${SHDIR} ]: then
+        mkdir -p ${SHDIR}
 fi
 
 echo "Start GuestPlaftform with Arm CCA support"

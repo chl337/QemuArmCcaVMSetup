@@ -11,6 +11,59 @@ from pathlib import Path
 from threading import Thread
 
 
+
+def dependencies(build_type, root_path):
+    deps = {
+        "aarch64-linux-gnu-gcc": "https://ftp.gnu.org/gnu/gcc/gcc-11.2.0/gcc-11.2.0.tar.xz",
+        "aarch64-none-elf-gcc": "https://developer.arm.com/-/media/Files/\
+        downloads/gnu/13.3.rel1/binrel/\
+        arm-gnu-toolchain-13.3.rel1-aarch64-aarch64-none-elf.tar.xz"
+    }
+    print(">> Check if 'aarch64-linux-gnu-' toolchain is installed")
+    toolchain_path = shutil.which("aarch64-none-elf-gcc")
+    if toolchain_path is None:
+       # install_dep("aarch64-linux-gnu-", root_path, 'tools', deps["aarch64-linux-gnu-gcc"], 'cd gcc-11.2.0 \
+       # && ./configure --target=aarch64-linux-gnu --prefix=/usr/local \
+       # && make -j4 && sudo make install')
+        bash_cmd = 'sudo apt-get update & sudo apt-get install gcc-aarch64-linux-gnu\
+            g++-aarch64-linux-gnu'
+            subprocess.run(bash_cmd, shell=True, check=True,
+                           executable='/bin/bash')
+    else:
+        print('>> Found toolchain')
+    if built_type == "all":
+        print(">> Check if 'aarch64-none-elf' toolchain is installed")
+        if toolchain_path is None:
+            install_dep("aarch64-none-elf-", root_path, 'tools', deps["aarch64-none-elf-"], '')
+    else:
+        print('>> Found toolchain')
+
+def install_dep(dep, root_path, where, url, bash_cmd):
+    _rpath  = root_path
+    tool_dir = _rpath.joinpath('tools')
+    if tool_dir.exists() == False:
+        os.makedirs(tool_dir.as_posix())
+    with cd(tool_dir):
+        toolchain = url.split("/")[-1]
+        print(f'>> Get \'{dep}\' toolchain from:{url}')
+        response = request.urlopen(request.Request(url))
+            if response.status == 200:#Ok
+                with open(toolchain, 'w+b') as tar:
+                    tar.write(response.read())
+                    with tarfile.open(toolchain, 'r:xz') as f:
+                        f.extractall(path='.')
+                        dir_name = toolchain.split(".")[0]
+                        if bash_cmd != '':
+                            subprocess.run(bash_cmd, shell=True, check=True,
+                                           executable='/bin/bash')
+                        else:
+                            toolchain_path = os.path.abspath(f'./{dir_name}/bin')
+                            os.environ['PATH'] += ':'+toolchain_path
+            else:
+                sys.exit('>> Failed to get {}'.format(toolchain))
+
+    print(f'>> Path to toolchain:{toolchain_path}')
+
 class cd:
     def __init__(self, new_path):
         self.new_path = os.path.expanduser(new_path.as_posix())
@@ -79,9 +132,13 @@ def main():
     argpars = argparse.ArgumentParser()
     argpars.add_argument('--dir', help='Abspath to root directory where to build RME. \
     \nDefault {path}'.format(path=script_path), type=Path, default=Path(script_path))
+    argpars.add_argument('--build', help='base: use prebuild TF-A.\nall: pull everything',
+                         type=str, default='base')
     args = argpars.parse_args()
     root_path = args.dir
+    built_type = args.build
     print(f'>> Script path:{script_path.as_posix()} - project root:{root_path.as_posix()}')
+    dependencies(built_type, root_path)
     #[*]
     tf_rmm = RmeStackComponentX('https://git.codelinaro.org/linaro/dcap/rmm.git',
                                 ['git submodule update --init --recursive',
@@ -114,7 +171,7 @@ def main():
     #[*]
     linux_cca = RmeStackComponentX('https://gitlab.arm.com/linux-arm/linux-cca',
                                    ['make CROSS_COMPILE=aarch64-linux-gnu- ARCH=arm64 defconfig',
-                                    'scripts/config -e VIRT_DRIVERS -e ARM_CCA_GUEST',
+                                    'scripts/config -e VIRT_DRIVERS -e ARM_CCA_GUEST -e VMGENID -d NITRO_ENCLAVES',
                                     'make CROSS_COMPILE=aarch64-linux-gnu- ARCH=arm64 -j30'],
                                    _branch='cca-full/v3')
     qemu_platform_emul = RmeStackComponentX('https://git.codelinaro.org/linaro/dcap/qemu',
@@ -126,34 +183,17 @@ def main():
                                     'sudo ./ubuntu_img/ubuntu_fs.sh ubuntu_img/ubuntu22.img',
                                     'sudo chmod 666 ubuntu_img/ubuntu22.img'],
                                    _script=True)
-
-    print(">> Check if 'aarch64-none-elf-' toolchain is installed")
-    toolchain_path = shutil.which("aarch64-none-elf-gcc")
-    if toolchain_path is None:
-        _rpath  = root_path
-        tool_dir = _rpath.joinpath('tools')
-        if tool_dir.exists() == False:
-            os.makedirs(tool_dir.as_posix())
-        with cd(tool_dir):
-            toolchain = 'arm-gnu-toolchain-13.3.rel1-aarch64-aarch64-none-elf'
-            url = f'https://developer.arm.com/-/media/Files/downloads/gnu/13.3.rel1/binrel/{toolchain}.tar.xz'
-            print(f'>> Get \'aarch64-none-elf-\' toolchain from:{url}')
-            response = request.urlopen(request.Request(url))
-            if response.status == 200:#Ok
-                with open(toolchain+'.tar.xz', 'w+b') as tar:
-                    tar.write(response.read())
-                    with tarfile.open(toolchain+'.tar.xz', 'r:xz') as f:
-                        f.extractall(path='.')
-                        toolchain_path = os.path.abspath(f'./{toolchain}/bin')
-                        os.environ['PATH'] += ':'+toolchain_path
-            else:
-                sys.exit('>> Failed to get {}'.format(toolchain))
+    tf_a_prebuild = RmeStackComponentX('./prebuild.sh',
+                                   ['chmod +x ./prebuild.sh',
+                                    './prebuild.sh -p'],
+                                   _script=True)
+    if built_type == "base":
+        task_batch = [linux_cca, qemu_platform_emul, ubuntu_fs, tf_a_prebuild]
+        run_tasks(root_path, script_path, [task_batch])
     else:
-        print('>> Found toolchain')
-    print(f'>> Path to toolchain:{toolchain_path}')
-    task_batch_0 = [tf_rmm, edk2_host, linux_cca, qemu_platform_emul]
-    task_batch_1 = [tf_a, ubuntu_fs]
-    run_tasks(root_path, script_path, [task_batch_0, task_batch_1])
+        task_batch_0 = [tf_rmm, edk2_host, linux_cca, qemu_platform_emul]
+        task_batch_1 = [tf_a, ubuntu_fs]
+        run_tasks(root_path, script_path, [task_batch_0, task_batch_1])
     print(">> Create 2 additional terminal windows and start in each a TCP lister: nc -l 5432{3,4}")
     exit(">> If done call ./qemu_system_launcher_host.sh to start the guest-platform.")
 
