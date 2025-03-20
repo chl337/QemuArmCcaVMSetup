@@ -3,6 +3,7 @@
 QEMU=
 UBUNTU=
 PREBUILD=
+LINUX=
 ALL=
 
 # Build the big files
@@ -33,7 +34,7 @@ if [[ -n ${LINUX} ]] || [[ -n ${ALL} ]]; then
         echo "Build Linux-CCA"
         if [[ ! -d ./linux-cca ]]; then
                 echo " Linux-CCA not found - clone"
-                     git clone -b cca/v3 --single-branch https://gitlab.arm.com/linux-arm/linux-cca.git
+                     git clone -b cca-full/v3 --single-branch https://gitlab.arm.com/linux-arm/linux-cca.git
         else
                 echo "Qemu-CCA found"
         fi
